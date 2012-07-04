@@ -1,14 +1,48 @@
 
-task :build do
+require 'rubygems'
+require 'facter'
+Facter.loadfacts
+
+def num_cpus
+  (Facter.value('processorcount') ||
+   Facter.value('sp_number_processors') ||
+   "1").to_i
+end
+
+task :clean_hpc do
+  system('mkdir -p dist/hpc')
+  system('rm dist/hpc/* 2> /dev/null')
+  system('rm server-tests.tix 2> /dev/null')
+  system('rm -r .hpc 2> /dev/null')
+end
+
+task :clean => [:clean_hpc] do
+  system('rm -r dist')
+end
+
+task :cabal_build do
   system('cabal configure')
   raise "cabal configure failed!" unless $?.success?
   system('cabal build')
   raise "cabal build failed!" unless $?.success?
 end
 
-task :test => [:build] do
-  system('./dist/build/server-tests/server-tests')
+task :build => [:cabal_build]
+
+task :hlint do
+  system('mkdir -p dist')
+  system('hlint ServerTests.hs CEditorServer.hs CEditor --report=dist/hlint.html')
+end
+
+task :test => [:clean_hpc, :build] do
+  system('mkdir -p dist/hpc')
+  system("./dist/build/server-tests/server-tests +RTS -N#{num_cpus}")
   raise "tests failed!" unless $?.success?
+  system('hpc report server-tests')
+  system('hpc report server-tests > dist/hpc/report.txt')
+  system('hpc markup server-tests --destdir=dist/hpc >> /dev/null')
+  puts('Coverage data stored in dist/hpc')
+  puts('Point your browser at file://' + `pwd`.strip + '/dist/hpc/hpc_index.html')
 end
 
 task :server => [:build] do

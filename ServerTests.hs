@@ -1,25 +1,21 @@
 {-# LANGUAGE TemplateHaskell #-}
 
+module Main where
 
-import CEditor.Server.DB
+import Tests.DB
 import Test.Framework.TH
-import Test.Framework
-import Test.HUnit
 import Test.Framework.Providers.HUnit
 import Test.Framework.Providers.QuickCheck2
 
+{-# ANN module "HLint: ignore Use camelCase" #-}
 
-case_1 = do 
-  1 @=? 1
-case_2 = do
-  2 @=? 2
+case_initDB :: IO ()
+case_initDB = testDbInit
+
+prop_reverse :: [Int] -> Bool
 prop_reverse xs = reverse (reverse xs) == xs
-  where types = xs::[Int]
 
-case_dbInit = do
-  conn <- initDB Nothing
-  return ()
-
+main :: IO ()
 main = $(defaultMainGenerator)
 
 
