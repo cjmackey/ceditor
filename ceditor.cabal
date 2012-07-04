@@ -17,4 +17,9 @@ cabal-version:       >=1.8
 executable ceditor-server
   main-is:             CEditorServer.hs
   --other-modules:       
-  build-depends:       base ==4.5.*, bytestring, mtl, text, transformers, websockets
+  build-depends:       base ==4.5.*, bytestring, HDBC, HDBC-sqlite3, mtl, text, transformers, websockets
+
+executable server-tests
+  main-is:             ServerTests.hs
+  --other-modules:       
+  build-depends:       base ==4.5.*, bytestring, HDBC, HDBC-sqlite3, HUnit, mtl, test-framework, test-framework-hunit, test-framework-th, test-framework-quickcheck2, text, transformers, websockets
