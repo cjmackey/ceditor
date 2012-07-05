@@ -1,8 +1,5 @@
 module Dom.TemplParser where
 
--- TODO: figure out backtracking?
---import Prelude hiding (try)
-
 import Text.ParserCombinators.Parsec
 
 import Dom.TemplTypes
@@ -22,10 +19,6 @@ simplifyTempls (a:b:xs) =
     (Raw s1, Raw s2) -> simplifyTempls ((Raw (s1 ++ s2)) : xs)
     _ -> a : simplifyTempls (b:xs)
 simplifyTempls x = x
-
-
-
-
 
 parseHierarchy :: ID -> String -> Either ParseError [InchoateTempl]
 parseHierarchy rootID input = parse (hierarchy rootID) "" input
