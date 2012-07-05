@@ -26,7 +26,7 @@ def clean
   system('rm -r dist')
 end
 
-def build_server
+def build_cabal
   system('cabal configure')
   raise "cabal configure failed!" unless $?.success?
   system('cabal build')
@@ -35,7 +35,7 @@ end
 
 def build_client
   system('mkdir -p dist/build/ceditor-client/ceditor-client-tmp')
-  system("hastec src/CEditorClient.hs --opt-all")
+  system("hastec -Wall src/Client.hs --opt-all")
   hastec_success = $?.success?
   %w(o hi jsmod).zip(%w(src src .)).each do |ext, dir|
     `find #{dir} | grep -x '.*\.#{ext}' | grep -v -x 'dist/.*'`.split("\n").each do |f|
@@ -44,14 +44,14 @@ def build_client
       system("mv #{f} dist/build/ceditor-client/ceditor-client-tmp/#{f}")
     end
   end
-  system("mv src/CEditorClient.js dist/build/ceditor-client.js 2> /dev/null")
+  system("mv src/Client.js dist/build/ceditor-client/ceditor-client.js 2> /dev/null")
   puts "note: this won't work if facter is required!" if $loaded_facter
   raise "hastec failed!" unless hastec_success
 end
 
 def build
   tc = Thread.new { build_client }
-  ts = Thread.new { build_server }
+  ts = Thread.new { build_cabal }
   tc.join
   ts.join
 end

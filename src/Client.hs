@@ -2,7 +2,6 @@
 
 module Main where
 
-import Haste
 import Haste.DOM
 
 
@@ -11,8 +10,8 @@ import Haste.DOM
 
 main :: IO ()
 main = do
-  elem <- newElem "pre"
-  withElem "body" (addChild elem)
+  e <- newElem "pre"
+  withElem "body" (addChild e)
   return ()
 
 
