@@ -16,6 +16,12 @@ task :clean_hpc do
   system('rm -r .hpc 2> /dev/null')
 end
 
+task :js_build do
+  # TODO: figure out why this errors with:
+  # /home/carl/.cabal/share/haste-compiler-0.1/stdlib.js: hGetContents: invalid argument (invalid byte sequence)
+  # In the mean time, use `ruby js-build.rb`
+end
+
 task :clean => [:clean_hpc] do
   system('rm -r dist')
 end
