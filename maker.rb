@@ -1,11 +1,12 @@
 #!/usr/bin/env ruby
 
+require 'rubygems'
 require 'date'
 require 'thread'
+require 'open4'
 
 $loaded_facter
 def num_cpus
-  require 'rubygems'
   require 'facter'
   $loaded_facter = true
   Facter.loadfacts
@@ -52,8 +53,8 @@ end
 def build
   tc = Thread.new { build_client }
   ts = Thread.new { build_cabal }
-  tc.join
   ts.join
+  tc.join
 end
 
 def hlint
