@@ -4,12 +4,14 @@ import Text.ParserCombinators.Parsec
 
 import Dom.TemplTypes
 
+type TagName = String
+
 data InchoateTempl = Raw String
-                   | Eval ID String
+                   | Eval ID TagName String
                    deriving (Eq, Show)
 
 setID :: ID -> InchoateTempl -> InchoateTempl
-setID i (Eval _ x) = Eval i x
+setID i (Eval _ n x) = Eval i n x
 setID _ t = t
 
 simplifyTempls :: [InchoateTempl] -> [InchoateTempl]
@@ -34,12 +36,18 @@ hierarchy rootID = do
 
 
 evalTag :: Parser InchoateTempl
-evalTag = start >> rest "" >>= (\s -> return $ Eval "" s)
-  where start = string "<%="
-        end = string "%>"
-        rest s = do
-          x <- try (end >> return "") <|> (noneOf "" >>= (\x -> rest [x]))
-          return (s ++ x)
+evalTag = do
+  _ <- string "<%"
+  ntag <- many $ noneOf "=" 
+  let tag = case words ntag of
+        [] -> "span"
+        (x:_) -> x
+  _ <- string "="
+  fun <- rest ""
+  return $ Eval "" tag fun
+    where rest s = do
+            x <- try (string "%>" >> return "") <|> (noneOf "" >>= (\x -> rest [x]))
+            return (s ++ x)
 
 rawChar :: Parser InchoateTempl
 rawChar = do
