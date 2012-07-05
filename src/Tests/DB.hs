@@ -1,4 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
 module Tests.DB where
 
 import CEditor.Server.DB
