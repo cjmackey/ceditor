@@ -3,7 +3,7 @@
 module Main where
 
 import Haste.DOM
-
+import Dom.Templ()
 
 
 
