@@ -36,7 +36,7 @@ end
 
 def build_client
   system('mkdir -p dist/build/ceditor-client/ceditor-client-tmp')
-  system("hastec -Wall src/Client.hs --opt-all")
+  system("cd src ; hastec -Wall Client.hs --opt-all")
   hastec_success = $?.success?
   %w(o hi jsmod).zip(%w(src src .)).each do |ext, dir|
     `find #{dir} | grep -x '.*\.#{ext}' | grep -v -x 'dist/.*'`.split("\n").each do |f|
@@ -51,10 +51,10 @@ def build_client
 end
 
 def build
-  tc = Thread.new { build_client }
+  # tc = Thread.new { build_client }
   ts = Thread.new { build_cabal }
   ts.join
-  tc.join
+  # tc.join
 end
 
 def hlint
