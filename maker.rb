@@ -66,7 +66,7 @@ def test
   clean
   build
   system('mkdir -p dist/hpc')
-  system("./dist/build/server-tests/server-tests +RTS -N#{num_cpus}")
+  system("./dist/build/server-tests/server-tests -a 10000 +RTS -N#{num_cpus}")
   raise "tests failed!" unless $?.success?
   system('hpc report server-tests.tix')
   system('hpc report server-tests > dist/hpc/report.txt')
