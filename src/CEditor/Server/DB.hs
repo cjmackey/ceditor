@@ -7,10 +7,8 @@ import Data.Maybe
 
 
 initDB :: Maybe FilePath -> IO Connection
-initDB dbFile = do
-  conn <- connectSqlite3 $ fromMaybe ":memory:" dbFile
-  
-  return conn
+initDB dbFile = connectSqlite3 $ fromMaybe ":memory:" dbFile
+
 
 
 

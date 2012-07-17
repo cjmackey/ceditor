@@ -58,6 +58,7 @@ def build
 end
 
 def hlint
+  puts("* HLint:")
   system('mkdir -p dist')
   system('hlint src --report=dist/hlint.html')
 end
@@ -65,9 +66,12 @@ end
 def test
   clean
   build
+  hlint
+  puts("* Tests:")
   system('mkdir -p dist/hpc')
   system("./dist/build/server-tests/server-tests -a 10000 +RTS -N#{num_cpus}")
   raise "tests failed!" unless $?.success?
+  puts("* HPC (Coverage):")
   system('hpc report server-tests.tix')
   system('hpc report server-tests > dist/hpc/report.txt')
   system('hpc markup server-tests --destdir=dist/hpc >> /dev/null')

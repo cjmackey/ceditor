@@ -1,12 +1,14 @@
 {-# LANGUAGE TemplateHaskell #-}
-module CEditor.Server.DBTests(testGroup) where
+module CEditor.Server.TestDB(testGroup) where
 
 import Test.Framework.TH
 import Test.Framework.Providers.HUnit
 import Test.HUnit()
-import CEditor.Server.DB
 import Database.HDBC
 
+import CEditor.Server.DB
+
+{-# ANN module "HLint: ignore Use camelCase" #-}
 
 testDbInit :: IO ()
 testDbInit = do
