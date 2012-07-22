@@ -69,7 +69,7 @@ def test
   hlint
   puts("* Tests:")
   system('mkdir -p dist/hpc')
-  system("./dist/build/server-tests/server-tests -a 10000 +RTS -N#{num_cpus}")
+  system("./dist/build/server-tests/server-tests -a 2000 +RTS -N#{num_cpus}")
   raise "tests failed!" unless $?.success?
   puts("* HPC (Coverage):")
   system('hpc report server-tests.tix')

@@ -9,6 +9,16 @@ import Test.Framework.Providers.QuickCheck2
 import Test.QuickCheck
 import Data.DeriveTH
 
+import Prelude hiding (concat)
+import Debug.Trace ()
+import Data.Maybe
+import Data.Foldable
+import Data.Sequence (Seq, (|>))
+import qualified Data.Sequence as S
+import Data.Map (Map)
+import qualified Data.Map as M
+import System.IO.Unsafe
+
 import CEditor.Common.OTClass
 
 {-# ANN module "HLint: ignore Use camelCase" #-}
@@ -17,11 +27,20 @@ import CEditor.Common.OTClass
 insertText :: Int -> String -> String -> String
 insertText ix s2 s1 = take ix s1 ++ s2 ++ drop ix s1
 
+case_instex1 = "asdfblah" @=? insertText 0 "asdf" "blah"
+case_instex2 = "asdfblah" @=? insertText (-1000) "asdf" "blah"
+case_instex3 = "blahasdf" @=? insertText 1000 "asdf" "blah"
+case_instex4 = "asdf" @=? insertText 1000 "asdf" ""
+case_instex5 = "asdf" @=? insertText (-1000) "asdf" ""
+
 data TextObj = TextObj Version String
+             deriving (Show)
 
 data TranBoilerplate = TranBoilerplate Version UserID
+                     deriving (Show)
 
 data TextTran = TextTran TranBoilerplate TextAct
+              deriving (Show)
 data TextAct = InsertText Int String
              deriving (Show)
 
@@ -50,50 +69,9 @@ instance OT TextObj TextTran where
   transformObject (TextTran _ (InsertText ix s)) (TextObj v0 s0) = TextObj (v0 + 1) (insertText ix s s0)
 
 
-$(derive makeArbitrary ''TextObj)
-$(derive makeArbitrary ''TextAct)
 
-data TextTest3Op = C0 TextAct
-                 | C1 TextAct
-                 | C2 TextAct
-                 | C0D | C1D | C2D
-data TextTest1Op = C TextAct
-                 | D | U
-                 deriving (Show)
 
-data SimState1 = SimState1 { pendingUploads :: [TextTran]
-                           , pendingDownloads :: [TextTran]
-                           , serv :: ObjectContainer TextObj TextTran
-                           , cli :: ClientObjectContainer TextObj TextTran }
-$(derive makeArbitrary ''TextTest1Op)
 
-prop_run1 :: [TextTest1Op] -> Bool
-prop_run1 ops = txt (currentView finalClient) == txt (current finalServer)
-  where obj0 = TextObj 0 ""
-        simstate0 = SimState1 { pendingUploads = []
-                              , pendingDownloads = []
-                              , serv = newObjectContainer obj0
-                              , cli = newClientObjectContainer "" obj0 }
-        apply state (C a) = let (t', c') = applyClientTransformation t (cli state)
-                                t = TextTran b a
-                                b = TranBoilerplate 0 ""
-                            in state { pendingUploads = pendingUploads state ++ [t']
-                                     , cli = c' }
-        apply state D = case pendingDownloads state of
-          (t:xs) -> state { pendingDownloads = xs
-                          , cli = recvServerTransformation t (cli state) }
-          [] -> state
-        apply state U = case pendingUploads state of
-          (t:xs) -> let (t', s') = appendTransformation t (serv state)
-                    in state { pendingUploads = xs
-                             , pendingDownloads = pendingDownloads state ++ [t']
-                             , serv = s' }
-          [] -> state
-        simstate1 = foldl apply simstate0 ops
-        finalClient = foldl (flip recvServerTransformation)
-                      (cli simstate1) (pendingDownloads simstate1)
-        finalServer = foldl (\oc t -> snd $ appendTransformation t oc)
-                      (serv simstate1) (pendingUploads simstate1)
 
 case_initialize = do
   let obj0 = TextObj 0 ""
@@ -136,6 +114,125 @@ case_initialize = do
   let c0_3 = recvServerTransformation t1_1' c0_2
   txt (currentView c0_3) @=? "asdfblah"
   txt (serverView c0_3) @=? "asdfblah"
+
+
+
+
+
+
+
+
+
+
+$(derive makeArbitrary ''TextObj)
+$(derive makeArbitrary ''TextAct)
+
+data TextTestOp = C TextAct
+                 | D | U
+                 deriving (Show)
+$(derive makeArbitrary ''TextTestOp)
+
+data SimCliState = SimCliState { upq :: Seq TextTran
+                               , downq :: Seq TextTran
+                               , cli :: ClientObjectContainer TextObj TextTran }
+                 deriving (Show)
+data SimState = SimState { serv :: ObjectContainer TextObj TextTran 
+                         , clis :: Map Int SimCliState }
+              deriving (Show)
+
+applyOp :: SimState -> (Int, TextTestOp) -> SimState
+applyOp state (ix0, C a) = let ix = ix0 `mod` M.size (clis state)
+                               cs = fromJust $ M.lookup ix $ clis state
+                               t = TextTran (TranBoilerplate 0 (show ix)) a
+                               (t', c') = applyClientTransformation t (cli cs)
+                               cs' = cs { cli = c', upq = upq cs |> t' }
+                           in state { clis = M.insert ix cs' (clis state) }
+applyOp state (ix0, D) = let ix = ix0 `mod` M.size (clis state)
+                             cs = fromJust $ M.lookup ix $ clis state
+                             c = cli cs
+                             c' = recvServerTransformation (S.index (downq cs) 0) c
+                             cs' = cs { cli = c', downq = S.drop 1 (downq cs) }
+                         in if S.length (downq cs) >= 1
+                            then state { clis = M.insert ix cs' (clis state) }
+                            else state
+applyOp state (ix0, U) = let ix = ix0 `mod` M.size (clis state)
+                             cs = fromJust $ M.lookup ix $ clis state
+                             (t', s') = appendTransformation (S.index (upq cs) 0) (serv state)
+                             cs' = cs { upq = S.drop 1 (upq cs) }
+                             state' = state { clis = M.insert ix cs' (clis state), serv = s' }
+                             state'' = state' { clis = M.map (endownqueue t') (clis state') }
+                             endownqueue x ecs = ecs { downq = downq ecs |> x }
+                         in if S.length (upq cs) >= 1
+                            then state''
+                            else state
+flushDown :: SimCliState -> SimCliState
+flushDown cs0 = cs0 { cli = Data.Foldable.foldl (flip recvServerTransformation)
+                            (cli cs0) (downq cs0) }
+
+case_sim = do
+  let obj0 = TextObj 0 ""
+  let cli0 i = SimCliState { upq = S.empty
+                           , downq = S.empty
+                           , cli = newClientObjectContainer (show i) obj0 }
+  let simstate0 = SimState { clis = M.fromList [(ix, cli0 ix) | ix <- [0,1]]
+                           , serv = newObjectContainer obj0 }
+  "0" @=? userID (cli (fromJust $ M.lookup 0 $ clis simstate0))
+  "1" @=? userID (cli (fromJust $ M.lookup 1 $ clis simstate0))
+  let s1 = applyOp simstate0 (0, C (InsertText 0 "a"))
+  1 @=? S.length (upq (fromJust $ M.lookup 0 $ clis s1))
+  let s2 = applyOp s1 (0, U)
+  0 @=? S.length (upq (fromJust $ M.lookup 0 $ clis s2))
+  "a" @=? txt (current $ serv s2)
+  1 @=? S.length (downq (fromJust $ M.lookup 0 $ clis s2))
+  1 @=? S.length (downq (fromJust $ M.lookup 1 $ clis s2))
+  let s3 = applyOp s2 (0, D)
+  let s4 = applyOp s3 (1, D)
+  "a" @=? txt (currentView ( cli (fromJust $ M.lookup 0 (clis s4))))
+  "a" @=? txt (currentView ( cli (fromJust $ M.lookup 1 (clis s4))))  
+
+prop_sim :: [(Int, TextTestOp)] -> [(Int, TextTestOp)] -> [(Int, TextTestOp)] -> [(Int, TextTestOp)] -> Bool
+prop_sim op1 op2 op3 op4 = if res
+               then --res
+                 unsafePerformIO $ do
+                   let tx = txt (currentView ( cli (fromJust $ M.lookup 0 finalClients)))
+                   if Prelude.and [tx == "", length (
+                                      filter (\(_,x) -> 
+                                               case x of 
+                                                 C (InsertText _ s) -> length s > 0 
+                                                 _ -> False) ops
+                                      ) > 0]
+                     then print ops >> return False
+                     else return True
+               else unsafePerformIO $ do
+                 print "ops"
+                 print ops
+                 print "ops''"
+                 print ops''
+                 print "simstate1"
+                 print simstate1
+                 print "finalClients"
+                 print finalClients
+                 print "out0"
+                 print $ txt (currentView ( cli (fromJust $ M.lookup 0 finalClients)))
+                 print "out1"
+                 print $ txt (currentView ( cli (fromJust $ M.lookup 1 finalClients)))
+                 print "done"
+                 return False
+  where ops = op1 ++ op2 ++ op3 ++ op4
+        obj0 = TextObj 0 ""
+        cli0 i = SimCliState { upq = S.empty
+                             , downq = S.empty
+                             , cli = newClientObjectContainer (show i) obj0 }
+        simstate0 = SimState { clis = M.fromList [(ix, cli0 ix) | ix <- [0,1]]
+                             , serv = newObjectContainer obj0 }
+        ops'' = ops' ++ concat (replicate (length ops) [(ix, U) | ix <- [0,1]])
+        --ops'' = ops' ++ [(ix, D) | _ <- replicate (length ops) 0, ix <- [0,1]]
+        ops' = map (\(a, b) -> (a `mod` 2, b)) ops
+        simstate1 = Data.Foldable.foldl applyOp simstate0 ops''
+        finalClients = fmap flushDown (clis simstate1)
+        res = txt (currentView ( cli (fromJust $ M.lookup 0 finalClients))) == 
+              txt (currentView ( cli (fromJust $ M.lookup 1 finalClients)))
+
 
 
 

@@ -29,6 +29,7 @@ data (OT o t) =>
      ObjectContainer o t = ObjectContainer { snapshots :: Map Version o
                                            , current :: o
                                            , tranLog :: Map Version t }
+                         deriving (Show)
 newObjectContainer o = ObjectContainer { snapshots = Data.Map.singleton (version o) o
                                        , current = o
                                        , tranLog = Data.Map.empty }
@@ -37,6 +38,10 @@ data (OT o t) =>
                                                        , serverView :: o
                                                        , currentView :: o
                                                        , clientLog :: Seq t }
+                               deriving (Show)
+instance (OT o t) => UserTagged (ClientObjectContainer o t) where
+  userID = selfID
+
 newClientObjectContainer uid o = ClientObjectContainer { selfID = uid
                                                        , serverView = o
                                                        , currentView = o
