@@ -23,8 +23,8 @@ class (Versioned t, UserTagged t) => Transformation t where
 
 class (Versioned o, Versioned t, UserTagged t, Transformation t) => OT o t where
   transformObject :: t -> o -> o
-  
 
+-- TODO: figure out what to do about advancing object version #
 data (OT o t) => 
      ObjectContainer o t = ObjectContainer { snapshots :: Map Version o
                                            , current :: o
@@ -56,9 +56,12 @@ splitGTE k m = case splitLookup k m of
 advanceLog :: (OT o t) => Version -> ObjectContainer o t -> ObjectContainer o t
 advanceLog newStart oc = oc { tranLog = splitGTE newStart (tranLog oc) }
 
-appendTransformation :: (OT o t) => t -> ObjectContainer o t -> ObjectContainer o t
-appendTransformation t oc = oc { current = transformObject t'' (current oc)
-                               , tranLog = log1 }
+
+-- returns the modified transformation to send to subscribers as well
+-- as the modified object container.
+appendTransformation :: (OT o t) => t -> ObjectContainer o t -> (t, ObjectContainer o t)
+appendTransformation t oc = (t'', oc { current = transformObject t'' (current oc)
+                                     , tranLog = log1 })
   where log0 = tranLog oc
         t' = multitrans (splitGTE (version t) log0) t
         t'' = setVersion (case maxViewWithKey log0 of
@@ -71,15 +74,19 @@ multitrans s t = foldlWithKey (\t1 _ t0 -> if userID t1 /= userID t0
                                            then transformTransformation t0 t1
                                            else t1) t s
 
+-- returns the transformation to send to the server as well as the
+-- modified object container.
 applyClientTransformation :: (OT o t) => t -> ClientObjectContainer o t 
-                             -> ClientObjectContainer o t
-applyClientTransformation t coc = coc { currentView = transformObject t (currentView coc)
-                                      , clientLog = clientLog coc |> t }
+                             -> (t, ClientObjectContainer o t)
+applyClientTransformation t coc = (setVersion (version (serverView coc)) t,
+                                   coc { currentView = transformObject t (currentView coc)
+                                       , clientLog = clientLog coc |> t })
 
 recvServerTransformation :: (OT o t) => t -> ClientObjectContainer o t 
                             -> ClientObjectContainer o t
 recvServerTransformation t coc = if userID t == selfID coc
-                                 then coc { clientLog = drop 1 clog }
+                                 then coc { serverView = obj'
+                                          , clientLog = drop 1 clog }
                                  else coc''
   where obj' = transformObject t (serverView coc)
         coc' = coc { serverView = obj'
@@ -87,7 +94,7 @@ recvServerTransformation t coc = if userID t == selfID coc
                    , clientLog = Data.Sequence.empty }
         clog = clientLog coc
         clog' = fmap (transformTransformation t) clog
-        coc'' = foldl (flip applyClientTransformation) coc' clog'
+        coc'' = foldl (\a b -> snd $ applyClientTransformation b a) coc' clog'
 
 
 
