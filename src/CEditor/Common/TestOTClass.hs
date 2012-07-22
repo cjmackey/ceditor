@@ -23,6 +23,7 @@ data TranBoilerplate = TranBoilerplate Version UserID
 
 data TextTran = TextTran TranBoilerplate TextAct
 data TextAct = InsertText Int String
+             deriving (Show)
 
 instance Versioned TextObj where
   version (TextObj v _) = v
@@ -52,11 +53,47 @@ instance OT TextObj TextTran where
 $(derive makeArbitrary ''TextObj)
 $(derive makeArbitrary ''TextAct)
 
-data TextTestOp = C0 TextTran
-                | C1 TextTran
-                | C2 TextTran
+data TextTest3Op = C0 TextAct
+                 | C1 TextAct
+                 | C2 TextAct
+                 | C0D | C1D | C2D
+data TextTest1Op = C TextAct
+                 | D | U
+                 deriving (Show)
 
+data SimState1 = SimState1 { pendingUploads :: [TextTran]
+                           , pendingDownloads :: [TextTran]
+                           , serv :: ObjectContainer TextObj TextTran
+                           , cli :: ClientObjectContainer TextObj TextTran }
+$(derive makeArbitrary ''TextTest1Op)
 
+prop_run1 :: [TextTest1Op] -> Bool
+prop_run1 ops = txt (currentView finalClient) == txt (current finalServer)
+  where obj0 = TextObj 0 ""
+        simstate0 = SimState1 { pendingUploads = []
+                              , pendingDownloads = []
+                              , serv = newObjectContainer obj0
+                              , cli = newClientObjectContainer "" obj0 }
+        apply state (C a) = let (t', c') = applyClientTransformation t (cli state)
+                                t = TextTran b a
+                                b = TranBoilerplate 0 ""
+                            in state { pendingUploads = pendingUploads state ++ [t']
+                                     , cli = c' }
+        apply state D = case pendingDownloads state of
+          (t:xs) -> state { pendingDownloads = xs
+                          , cli = recvServerTransformation t (cli state) }
+          [] -> state
+        apply state U = case pendingUploads state of
+          (t:xs) -> let (t', s') = appendTransformation t (serv state)
+                    in state { pendingUploads = xs
+                             , pendingDownloads = pendingDownloads state ++ [t']
+                             , serv = s' }
+          [] -> state
+        simstate1 = foldl apply simstate0 ops
+        finalClient = foldl (flip recvServerTransformation)
+                      (cli simstate1) (pendingDownloads simstate1)
+        finalServer = foldl (\oc t -> snd $ appendTransformation t oc)
+                      (serv simstate1) (pendingUploads simstate1)
 
 case_initialize = do
   let obj0 = TextObj 0 ""
